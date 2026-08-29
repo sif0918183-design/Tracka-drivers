@@ -48,11 +48,21 @@ android {
 
     signingConfigs {
         release {
-            if (keystorePropertiesFile.exists() && rootProject.file('upload-keystore.jks').exists()) {
-                storeFile rootProject.file('upload-keystore.jks')
-                storePassword keystoreProperties['KEYSTORE_PASSWORD']
-                keyAlias keystoreProperties['KEY_ALIAS']
-                keyPassword keystoreProperties['KEY_PASSWORD']
+            if (keystorePropertiesFile.exists()) {
+                def p12File = rootProject.file('upload.p12')
+                def jksFile = rootProject.file('upload-keystore.jks')
+                if (p12File.exists()) {
+                    storeFile p12File
+                    storeType 'PKCS12'
+                    storePassword keystoreProperties['KEYSTORE_PASSWORD']
+                    keyAlias keystoreProperties['KEY_ALIAS']
+                    keyPassword keystoreProperties['KEY_PASSWORD']
+                } else if (jksFile.exists()) {
+                    storeFile jksFile
+                    storePassword keystoreProperties['KEYSTORE_PASSWORD']
+                    keyAlias keystoreProperties['KEY_ALIAS']
+                    keyPassword keystoreProperties['KEY_PASSWORD']
+                }
             }
         }
     }
@@ -72,7 +82,7 @@ android {
 
     buildTypes {
         release {
-            if (keystorePropertiesFile.exists() && rootProject.file('upload-keystore.jks').exists()) {
+            if (keystorePropertiesFile.exists() && (rootProject.file('upload.p12').exists() || rootProject.file('upload-keystore.jks').exists())) {
                 signingConfig signingConfigs.release
             }
         }
