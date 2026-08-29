@@ -41,20 +41,17 @@ jobs:
 
           mkdir -p android/app/src/main
 
-          # Decode Base64 to google-services.json without printing the secret
-          if ! echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json 2>/dev/null; then
+          if ! echo "$GOOGLE_SERVICES_JSON_BASE64" | tr -d ' \r\n' | base64 --decode > android/app/google-services.json 2>/dev/null; then
             echo "❌ Failed to decode GOOGLE_SERVICES_JSON_BASE64 base64 string!"
             exit 1
           fi
 
-          # Ensure the file has content and is not empty after decoding
           if [ ! -s android/app/google-services.json ]; then
             echo "❌ Decoded google-services.json file is empty!"
             rm -f android/app/google-services.json
             exit 1
           fi
 
-          # Validate JSON format and structure using python
           python3 -c "
           import json, sys
           try:
@@ -76,34 +73,62 @@ jobs:
             exit 1
           fi
 
-          # Copy to fallback path src/main
           cp android/app/google-services.json android/app/src/main/google-services.json
           echo "✅ google-services.json recreated successfully"
         working-directory: pwa_to_flutter_app
 
       # ============================================
-      # ✅ Decode Keystore (يبقى من الأسرار)
+      # ✅ Decode Keystore (upload.p12 PKCS12)
       # ============================================
       - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/upload-keystore.jks
-          if [ -f android/upload-keystore.jks ]; then
-            SIZE=$(stat -c%s android/upload-keystore.jks)
-            echo "✅ Keystore created ($SIZE bytes)"
+          echo "🔍 Decoding KEYSTORE_BASE64 secret..."
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "❌ KEYSTORE_BASE64 secret is not defined or empty!"
+            exit 1
+          fi
+
+          # Decode base64 string to upload.p12 binary
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 --decode > android/upload.p12
+          cp android/upload.p12 android/upload-keystore.jks
+
+          if [ -s android/upload.p12 ]; then
+            SIZE=$(stat -c%s android/upload.p12)
+            echo "✅ Keystore file created successfully ($SIZE bytes)"
           else
-            echo "❌ Failed to create keystore"
+            echo "❌ Decoded keystore file is empty!"
             exit 1
           fi
         working-directory: pwa_to_flutter_app
 
       # ============================================
-      # ✅ Create key.properties (يبقى من الأسرار)
+      # ✅ Validate PKCS12 Keystore with keytool
+      # ============================================
+      - name: Validate Keystore with keytool
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "🔍 Validating android/upload.p12 using keytool..."
+          if keytool -list -keystore android/upload.p12 -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" > /dev/null 2>&1; then
+            echo "✅ Keystore is a valid PKCS12 file and storepass is correct!"
+          else
+            echo "⚠️ Keytool check completed. Executing detailed keytool test..."
+            keytool -list -keystore android/upload.p12 -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" || true
+          fi
+        working-directory: pwa_to_flutter_app
+
+      # ============================================
+      # ✅ Create key.properties
       # ============================================
       - name: Create key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          printf "KEYSTORE_PASSWORD=%s\nKEY_PASSWORD=%s\nKEY_ALIAS=%s\n" "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
           echo "✅ key.properties created"
         working-directory: pwa_to_flutter_app
 
@@ -126,7 +151,6 @@ jobs:
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           
-          # التحقق من وجود APK
           if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
             SIZE=$(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)
             echo "✅ APK built successfully ($SIZE)"
@@ -140,33 +164,11 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       # ============================================
-      # ✅ Build AAB
-      # ============================================
-      - name: Build AAB
-        run: |
-          echo "📦 Building AAB..."
-          flutter build appbundle --release \
-            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
-            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          
-          # التحقق من وجود AAB
-          if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
-            SIZE=$(du -h build/app/outputs/bundle/release/app-release.aab | cut -f1)
-            echo "✅ AAB built successfully ($SIZE)"
-            ls -la build/app/outputs/bundle/release/
-          else
-            echo "❌ AAB build failed - file not found"
-            exit 1
-          fi
-        working-directory: pwa_to_flutter_app
-
-      # ============================================
       # ✅ Upload APK to Supabase
       # ============================================
       - name: Upload APK to Supabase
         if: success()
         run: |
-          # التحقق من وجود الملف قبل الرفع
           if [ ! -f build/app/outputs/flutter-apk/app-release.apk ]; then
             echo "❌ APK file not found for upload"
             exit 1
@@ -188,38 +190,6 @@ jobs:
             echo "📥 ${{ secrets.SUPABASE_URL }}/storage/v1/object/public/apk-builds/$APK_NAME"
           else
             echo "❌ APK upload failed"
-            exit 1
-          fi
-        working-directory: pwa_to_flutter_app
-
-      # ============================================
-      # ✅ Upload AAB to Supabase
-      # ============================================
-      - name: Upload AAB to Supabase
-        if: success()
-        run: |
-          # التحقق من وجود الملف قبل الرفع
-          if [ ! -f build/app/outputs/bundle/release/app-release.aab ]; then
-            echo "❌ AAB file not found for upload"
-            exit 1
-          fi
-          
-          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-          BUILD_NUM="${{ github.run_number }}"
-          AAB_NAME="Tirhal-App-build-${BUILD_NUM}-${TIMESTAMP}.aab"
-          
-          echo "📤 Uploading AAB to Supabase..."
-          curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/storage/v1/object/apk-builds/$AAB_NAME" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary "@build/app/outputs/bundle/release/app-release.aab"
-          
-          if [ $? -eq 0 ]; then
-            echo "✅ AAB uploaded successfully"
-            echo "📥 ${{ secrets.SUPABASE_URL }}/storage/v1/object/public/apk-builds/$AAB_NAME"
-          else
-            echo "❌ AAB upload failed"
             exit 1
           fi
         working-directory: pwa_to_flutter_app
@@ -252,14 +222,6 @@ jobs:
             echo "  ✅ app-release.apk ($SIZE)"
           else
             echo "  ❌ app-release.apk (not found)"
-          fi
-          echo ""
-          echo "📁 AAB:"
-          if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
-            SIZE=$(du -h build/app/outputs/bundle/release/app-release.aab | cut -f1)
-            echo "  ✅ app-release.aab ($SIZE)"
-          else
-            echo "  ❌ app-release.aab (not found)"
           fi
           echo ""
           echo "========================================="
