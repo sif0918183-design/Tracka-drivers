@@ -192,37 +192,6 @@ jobs:
           fi
         working-directory: pwa_to_flutter_app
 
-      # ============================================
-      # ✅ Upload AAB to Supabase
-      # ============================================
-      - name: Upload AAB to Supabase
-        if: success()
-        run: |
-          # التحقق من وجود الملف قبل الرفع
-          if [ ! -f build/app/outputs/bundle/release/app-release.aab ]; then
-            echo "❌ AAB file not found for upload"
-            exit 1
-          fi
-          
-          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-          BUILD_NUM="${{ github.run_number }}"
-          AAB_NAME="Tirhal-App-build-${BUILD_NUM}-${TIMESTAMP}.aab"
-          
-          echo "📤 Uploading AAB to Supabase..."
-          curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/storage/v1/object/apk-builds/$AAB_NAME" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary "@build/app/outputs/bundle/release/app-release.aab"
-          
-          if [ $? -eq 0 ]; then
-            echo "✅ AAB uploaded successfully"
-            echo "📥 ${{ secrets.SUPABASE_URL }}/storage/v1/object/public/apk-builds/$AAB_NAME"
-          else
-            echo "❌ AAB upload failed"
-            exit 1
-          fi
-        working-directory: pwa_to_flutter_app
 
       # ============================================
       # 🧹 Cleanup google-services.json
