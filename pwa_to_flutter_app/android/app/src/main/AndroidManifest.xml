@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.tracka.app">
+    package="com.tracka.drivers.app">
 
     <!-- ✅ أذونات أساسية -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -50,7 +50,7 @@
         android:name="android.app.Application"
         tools:replace="android:name"
         android:icon="@mipmap/ic_launcher"
-        android:label="Tracka"
+        android:label="Tracka Drivers"
         android:usesCleartextTraffic="true"
         android:theme="@style/LaunchTheme"
         android:hardwareAccelerated="true"

@@ -588,7 +588,7 @@ class _DriverHomeState extends State<DriverHome> {
   Future<void> _startForegroundService() async {
     if (await FlutterForegroundTask.isRunningService) return;
     await FlutterForegroundTask.startService(
-      notificationTitle: 'Tracka يعمل في الخلفية',
+      notificationTitle: 'Tracka Drivers يعمل في الخلفية',
       notificationText: 'جاهز لاستقبال طلبات الرحلات',
       callback: startCallback,
     );
