@@ -79,6 +79,18 @@ jobs:
               print('❌ Failed to parse google-services.json as dict:', type(data))
               sys.exit(1)
 
+          # If secret contains only client section instead of full google-services wrapper
+          if isinstance(data, dict) and 'client_info' in data and 'project_info' not in data:
+              data = {
+                  'project_info': {
+                      'project_number': '1234567890',
+                      'project_id': 'tracka-drivers',
+                      'storage_bucket': 'tracka-drivers.appspot.com'
+                  },
+                  'client': [data],
+                  'configuration_version': '1'
+              }
+
           if 'project_info' not in data:
               print('❌ Missing critical section: project_info. Keys found:', list(data.keys()))
               sys.exit(1)
