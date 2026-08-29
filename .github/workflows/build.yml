@@ -41,33 +41,63 @@ jobs:
 
           mkdir -p android/app/src/main
 
-          if ! echo "$GOOGLE_SERVICES_JSON_BASE64" | tr -d ' \r\n' | base64 --decode > android/app/google-services.json 2>/dev/null; then
-            echo "❌ Failed to decode GOOGLE_SERVICES_JSON_BASE64 base64 string!"
-            exit 1
-          fi
-
-          if [ ! -s android/app/google-services.json ]; then
-            echo "❌ Decoded google-services.json file is empty!"
-            rm -f android/app/google-services.json
-            exit 1
-          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" > android/app/google-services.raw
 
           python3 -c "
-          import json, sys
-          try:
-              with open('android/app/google-services.json', 'r') as f:
-                  data = json.load(f)
-              if 'project_info' not in data:
-                  print('❌ Missing critical section: project_info')
-                  sys.exit(1)
-              if 'client' not in data or not isinstance(data['client'], list) or len(data['client']) == 0:
-                  print('❌ Missing or invalid client configuration list')
-                  sys.exit(1)
-              print('✅ google-services.json has valid JSON format and essential fields!')
-          except Exception as e:
-              print('❌ JSON Validation failed:', str(e))
+          import json, sys, base64
+
+          with open('android/app/google-services.raw', 'r') as f:
+              raw_content = f.read().strip()
+
+          current = raw_content
+          data = None
+
+          for _ in range(5):
+              if isinstance(current, dict):
+                  data = current
+                  break
+              if isinstance(current, str):
+                  current_str = current.strip()
+                  if (current_str.startswith('{') and current_str.endswith('}')) or (current_str.startswith('\"') and current_str.endswith('\"')):
+                      try:
+                          current = json.loads(current_str)
+                          continue
+                      except Exception:
+                          pass
+                  try:
+                      decoded_bytes = base64.b64decode(current_str)
+                      current = decoded_bytes.decode('utf-8')
+                      continue
+                  except Exception:
+                      pass
+              break
+
+          if isinstance(current, dict):
+              data = current
+
+          if not isinstance(data, dict):
+              print('❌ Failed to parse google-services.json as dict:', type(data))
               sys.exit(1)
+
+          if 'project_info' not in data:
+              print('❌ Missing critical section: project_info. Keys found:', list(data.keys()))
+              sys.exit(1)
+
+          if 'client' not in data or not isinstance(data['client'], list) or len(data['client']) == 0:
+              print('❌ Missing or invalid client configuration list')
+              sys.exit(1)
+
+          # Update package name to match new applicationId com.tracka.drivers.app
+          for c in data.get('client', []):
+              if 'client_info' in c and 'android_client_info' in c['client_info']:
+                  c['client_info']['android_client_info']['package_name'] = 'com.tracka.drivers.app'
+
+          with open('android/app/google-services.json', 'w') as f:
+              json.dump(data, f, indent=2)
+
+          print('✅ google-services.json successfully recreated and updated for com.tracka.drivers.app!')
           "
+          rm -f android/app/google-services.raw
           if [ $? -ne 0 ]; then
             rm -f android/app/google-services.json
             exit 1
