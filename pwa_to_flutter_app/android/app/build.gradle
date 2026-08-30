@@ -33,7 +33,7 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 apply plugin: 'com.google.gms.google-services'
 
 android {
-    namespace "com.tracka.app"
+    namespace "com.tracka.drivers.app"
     compileSdkVersion 36
     ndkVersion flutter.ndkVersion
 
@@ -69,7 +69,7 @@ android {
 
     defaultConfig {
         // نصيحة: قم بتغيير الـ Application ID لاحقاً ليكون فريداً بك
-        applicationId "com.tracka.app"
+        applicationId "com.tracka.drivers.app"
         
         minSdkVersion 21
         targetSdkVersion 36
