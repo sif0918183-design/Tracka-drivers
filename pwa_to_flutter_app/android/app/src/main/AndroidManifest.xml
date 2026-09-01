@@ -77,6 +77,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
             <!-- ✅ Deep Link لقبول الرحلة -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
