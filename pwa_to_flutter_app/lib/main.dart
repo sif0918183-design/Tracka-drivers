@@ -22,7 +22,14 @@ import 'package:vibration/vibration.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // أنواع إشعارات منصة السفر (الهادئة)
-const _travelTypes = {'DRIVER_OFFER', 'DRIVER_SELECTED', 'NEW_CHAT_MESSAGE'};
+const _travelTypes = {
+  'DRIVER_OFFER',
+  'DRIVER_SELECTED',
+  'NEW_CHAT_MESSAGE',
+  'NEW_TRAVEL_REQUEST',
+  'TRIP_CANCELLED',
+  'RIDE_CANCELLED',
+};
 
 // ✅ نوع إشعار الرحلة الفورية (الطوارئ)
 const String _rideRequestType = 'RIDE_REQUEST';
@@ -502,7 +509,11 @@ class _DriverHomeState extends State<DriverHome> {
     _overlayEntry = null;
 
     if (isTravelNotif) {
-      const String travelUrl = 'https://tracka.zoonasd.com/driver_app/travel-platform.html';
+      String travelUrl = data['url']?.toString() ?? '/driver_app/travel-platform.html';
+      if (travelUrl.startsWith('/')) {
+        travelUrl = 'https://tracka.zoonasd.com$travelUrl';
+      }
+      print('[RIDE_FSI] Opening travel notification URL: $travelUrl');
       if (web != null) {
         web!.loadUrl(urlRequest: URLRequest(url: WebUri(travelUrl)));
       } else {
@@ -527,6 +538,17 @@ class _DriverHomeState extends State<DriverHome> {
         web!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
       } else {
         setState(() => _pendingUrl = url);
+      }
+    } else if (data['url'] != null) {
+      String targetUrl = data['url'].toString();
+      if (targetUrl.startsWith('/')) {
+        targetUrl = 'https://tracka.zoonasd.com$targetUrl';
+      }
+      print('[RIDE_FSI] Opening URL from notification data: $targetUrl');
+      if (web != null) {
+        web!.loadUrl(urlRequest: URLRequest(url: WebUri(targetUrl)));
+      } else {
+        setState(() => _pendingUrl = targetUrl);
       }
     }
   }
